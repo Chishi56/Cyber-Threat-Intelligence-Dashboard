@@ -4,7 +4,7 @@
 ## Overview
 The CTI Dashboard is a comprehensive web application designed for cybersecurity professionals to manage, analyze, and visualize threat intelligence data. Built with Python Flask and MongoDB, this dashboard provides powerful capabilities for IOC lookup, threat trend visualization, and CTI data export.
 
-![CTI Dashboard Screenshot](https://via.placeholder.com/800x400?text=CTI+Dashboard+Screenshot)
+![CTI Dashboard Screenshot](dashboard)
 
 ## Key Features
 ### 1. IOC Lookup
