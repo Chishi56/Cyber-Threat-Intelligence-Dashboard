@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IOC Lookup - CTI Dashboard</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/home">CTI Dashboard</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/home">Home</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/lookup">IOC Lookup</a></li>
+          <li class="nav-item"><a class="nav-link" href="/trends">Trends</a></li>
+          <li class="nav-item"><a class="nav-link" href="/export">Export Data</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Lookup Container -->
+  <div class="container mt-5">
+    <h2>Indicator of Compromise Lookup</h2>
+
+    <!-- 1) Form -->
+    <form id="lookupForm" class="row g-3 mb-4">
+      <div class="col-md-3">
+        <select class="form-select" id="typeSelect" required>
+          <option value="" disabled selected>Select Type</option>
+          <option value="ip">IP Address</option>
+          <option value="domain">Domain</option>
+          <option value="hash">File Hash</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <input type="text" class="form-control" id="iocInput" placeholder="Enter IOC value" required>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">Lookup</button>
+      </div>
+    </form>
+
+    <!-- 2) Error Box -->
+    <div id="errorBox" class="text-danger mb-3" style="display:none;"></div>
+
+    <!-- 3) Results Section -->
+    <div id="resultSection" class="d-none">
+      <h4>Lookup Result</h4>
+      <div class="mb-3">
+        <span id="threatBadge" class="badge fs-6"></span>
+      </div>
+      <pre id="resultJson" class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;"></pre>
+
+      <!-- optional tagging UI -->
+      <div class="input-group mt-3" style="max-width: 400px;">
+        <input type="text" class="form-control" id="tagInput" placeholder="Add tag">
+        <button type="button" class="btn btn-secondary" id="tagBtn">Add Tag</button>
+      </div>
+      <div id="tagsList" class="mt-2"></div>
+    </div>
+
+  </div> <!-- /.container -->
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+
+  <!-- Lookup Script -->
+  <script>
+  function validateIoc(type, value) {
+      switch(type) {
+          case 'ip':
+              return /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}$/.test(value);
+          case 'domain':
+              return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value);
+          case 'hash':
+              return /^[a-fA-F0-9]{32,64}$/.test(value);
+          default:
+              return false;
+      }
+  }
+
+  document.getElementById('lookupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const type     = document.getElementById('typeSelect').value;
+      const ioc      = document.getElementById('iocInput').value.trim();
+      const errorBox = document.getElementById('errorBox');
+
+      // Validate
+      if (!validateIoc(type, ioc)) {
+          errorBox.textContent = `Invalid ${type.toUpperCase()} format.`;
+          errorBox.style.display = 'block';
+          return;
+      } else {
+          errorBox.style.display = 'none';
+      }
+
+      // Fetch
+      let res;
+      try {
+          res = await fetch(`/api/ioc/${type}/${ioc}`);
+      } catch {
+          errorBox.textContent = 'Network error during lookup';
+          errorBox.style.display = 'block';
+          return;
+      }
+
+      if (!res.ok) {
+          try {
+              const err = await res.json();
+              errorBox.textContent = err.error || 'IOC not found';
+          } catch {
+              errorBox.textContent = 'IOC lookup failed';
+          }
+          errorBox.style.display = 'block';
+          return;
+      }
+
+      const result = await res.json();
+
+      // Display
+      document.getElementById('resultSection').classList.remove('d-none');
+
+      const malScore = result.vt.data.attributes.last_analysis_stats.malicious || 0;
+      const badge    = document.getElementById('threatBadge');
+      badge.textContent = malScore > 0
+          ? `Malicious (${malScore})`
+          : 'Clean';
+      badge.classList.toggle('bg-danger', malScore > 0);
+      badge.classList.toggle('bg-success', malScore === 0);
+
+      document.getElementById('resultJson').textContent =
+        JSON.stringify(result, null, 2);
+
+      // Tagging logic (optional)
+      const tagsList = document.getElementById('tagsList');
+      document.getElementById('tagBtn').onclick = () => {
+          const tagInput = document.getElementById('tagInput');
+          const tag = tagInput.value.trim();
+          if (tag) {
+              const span = document.createElement('span');
+              span.className = 'badge bg-secondary me-1';
+              span.textContent = tag;
+              tagsList.appendChild(span);
+              tagInput.value = '';
+          }
+      };
+  });
+  </script>
+</body>
+</html>
